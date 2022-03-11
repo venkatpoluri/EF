@@ -1,0 +1,210 @@
+Model:
+1. Create schema
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+
+ [Table("Tab1", Schema = "schema1")]
+    public class Tab1: BaseEntity
+    {
+        [Column("ID"), Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+
+        [Column("VerId", TypeName = "varchar(50)")]
+        public string VerId { get; set; }
+
+	// FK
+	public virtual Program ParentTab1{ get; set; }
+      
+   }
+
+
+   public class DBContext : DbContext
+    {
+        public DBContext (DbContextOptions<DBContext> options) : base(options)
+        {
+	public virtual DbSet<Tab1> tab1{ get; set; }
+         
+ protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+       
+modelBuilder.Entity<Tab1>(entity =>
+                   {
+                       entity.Property(p => p.VerId)
+              .HasComputedColumnSql("N'Ver'+ RIGHT('00000'+CAST(IdentityColumn AS VARCHAR(5)),5)");
+
+            
+                       entity.HasOne(p => p.ParentTab1)
+                       .WithMany(b => b.Tabl1)
+                       .HasForeignKey(p => p.CommononColumn);
+        }
+}
+
+
+Add-Migration MigrationName -Context DBContext
+
+Remove-Migration -Context DBContext
+
+Update-Database -Context DBContext
+
+
+GenericRepository:
+ public abstract class GenericRepository<T> :
+    IGenericRepository<T> where T : class 
+    {
+        private AdminPortalContext _entities;
+        public GenericRepository(DbContextOptions<AdminPortalContext> options)
+        {
+            _entities = new AdminPortalContext(options);
+        }
+        public AdminPortalContext Context
+        {
+            get { return _entities; }
+            set { _entities = value; }
+        }
+
+        public virtual IQueryable<T> GetAll()
+        {
+            IQueryable<T> query = _entities.Set<T>();
+            return query;
+        }
+
+        public IQueryable<T> FindBy(Expression<Func<T, bool>> predicate)
+        {
+            IQueryable<T> query = _entities.Set<T>().Where(predicate);
+            return query;
+        }
+
+        public virtual void Add(T entity)
+        {
+            _entities.Set<T>().Add(entity);
+        }
+        
+        public virtual void Delete(T entity)
+        {
+            _entities.Set<T>().Remove(entity);
+        }
+
+        public virtual void Edit(T entity)
+        {
+            _entities.Entry(entity).State = EntityState.Modified;
+        }
+
+        public virtual void Save()
+        {
+            _entities.SaveChanges();
+        }
+
+        public async Task<int> Commit()
+        {
+            return await _entities.SaveChangesAsync();
+        }
+
+        public void Rollback()
+        {
+            _entities.ChangeTracker.Entries().ToList().ForEach(x => x.Reload());
+        }
+
+    }
+
+UIModels:
+tab1DTO -  Same as table
+///////////////////////////////////////////////////////
+ public interface ITabRespository : IGenericRepository<Tab1>
+    {
+        tab1DTO add(Tab1 t1);
+
+        tab1DTO update(Tab1 t1);
+
+        tab1DTO delete(Tab1 t1);
+
+    }
+
+public class tab1Respository : GenericRepository<Tab1>, ITabRespository 
+    {
+        private readonly IMapper _mapper;
+
+     //   private readonly IDataRetentionPolicyRespository _dataRetention;
+        public tab1Respository (DbContextOptions<DBContext> options, IMapper mapper)
+            : base(options)
+        {
+            _mapper = mapper; 
+        }
+
+        public tab1DTO add(Tab1 t1)
+        {
+}
+///////////////////////////////////////////// API /////////////////////////////////////////////////
+
+Mapping:
+AutoMapper namespace
+public class AutoMapperProfile : Profile
+    {
+        public AutoMapperProfile()
+        {
+            CreateMap<Tab1DTO, Tab1>();
+}
+
+
+Startuo.cs
+
+  public class Startup
+    {
+        public Startup(IConfiguration configuration)
+        {
+            Configuration = configuration;
+
+        }
+
+        public IConfiguration Configuration { get; }
+
+        // This method gets called by the runtime. Use this method to add services to the container.
+        public void ConfigureServices(IServiceCollection services)
+        {
+
+services.AddAuthentication(AzureADB2CDefaults.BearerAuthenticationScheme)
+                .AddAzureADB2CBearer(options =>
+                {
+                    options.Instance = Configuration.GetValue<string>("Instance");
+                    options.ClientId = Configuration.GetValue<string>("ClientId");
+                    options.Domain = Configuration.GetValue<string>("Domain");
+                    options.SignUpSignInPolicyId = Configuration.GetValue<string>("SignUpSignInPolicyId");
+                }
+                //Configuration.Bind("AzureAdB2C", options)
+                );
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("Name", policy =>
+                   policy.RequireAssertion(context =>
+                       context.User.HasClaim(c =>
+                           c.Type == "Type1" && c.Value == "value")));
+
+services.AddScoped<Itab1Respository , tab1Respository >();
+
+ services.AddEntityFrameworkSqlServer()
+             .AddDbContext<DBContext>(options =>
+             {
+                 options.UseSqlServer(Configuration.GetValue<string>("KeyvalutDBConnection"));
+             });
+
+ services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+services.AddControllers().
+                AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.IgnoreNullValues = true;
+                    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+                });
+
+
+
+}
+ public void Configure(IApplicationBuilder app, IWebHostEnvironment env, DBContext db)
+        {
+            if (env.IsDevelopment())
+            {
+                app.UseDeveloperExceptionPage();
+            }
+            db.Database.EnsureCreated();
+
+}
